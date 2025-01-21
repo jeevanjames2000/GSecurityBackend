@@ -39,7 +39,7 @@ module.exports = {
       }
       const { name, vehicle_number, comments, totalFines, violationType } =
         req.body;
-      console.log("totalFines: ", totalFines);
+
       if (
         !name ||
         !vehicle_number ||

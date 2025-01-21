@@ -6,7 +6,11 @@ const sql = require("mssql");
 const app = express();
 const path = require("path");
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+  })
+);
 
 const sqlConfig = {
   user: "sa",
@@ -29,8 +33,11 @@ sql
   .catch((err) => {
     console.error("Error connecting to SQL Server:", err.message);
   });
+
 app.use(bodyParser.json());
 app.use("/uploads", express.static(path.join(__dirname, "./uploads")));
 app.use("/auth", require("./routes/mainRoutes"));
+app.use("/gatepass", require("./routes/gatepassRoutes"));
+
 const PORT = 9000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
