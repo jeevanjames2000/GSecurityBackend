@@ -5,11 +5,29 @@ module.exports = {
   getAllGatePass: async (req, res) => {
     try {
       const pool = req.app.locals.sql;
-      const result = await pool
+      const gatePassResult = await pool
         .request()
         .query("SELECT * FROM CreateGatePass ORDER BY id DESC");
-      res.status(200).json(result.recordset);
+      const particularsResult = await pool
+        .request()
+        .query("SELECT * FROM gatepass_particulars");
+      const gatePasses = gatePassResult.recordset;
+      const particulars = particularsResult.recordset;
+      const mappedData = gatePasses.map((gatePass) => {
+        return {
+          ...gatePass,
+          particulars: particulars
+            .filter((particular) => particular.pass_no === gatePass.pass_no)
+            .map((particular) => ({
+              id: particular.id,
+              particular: particular.particular,
+              qty: particular.qty,
+            })),
+        };
+      });
+      res.status(200).json(mappedData);
     } catch (err) {
+      console.error("Error fetching gate pass data:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   },
@@ -29,21 +47,21 @@ module.exports = {
       remarks,
       particulars,
     } = req.body;
-    const particularsJson = JSON.stringify(particulars);
+    const pool = req.app.locals.sql;
+    const transaction = pool.transaction();
     try {
-      const pool = req.app.locals.sql;
+      await transaction.begin();
       const lastPassQuery = await pool
         .request()
         .query("SELECT pass_no FROM CreateGatePass ORDER BY id DESC");
       let pass_no = "20250001";
       if (lastPassQuery.recordset.length > 0) {
         const lastPassNo = lastPassQuery.recordset[0].pass_no;
-
         const lastPassNoNumeric = parseInt(lastPassNo.slice(4), 10);
         const incrementedPassNo = lastPassNoNumeric + 1;
         pass_no = `2025${String(incrementedPassNo).padStart(4, "0")}`;
       }
-      await pool
+      await transaction
         .request()
         .input("pass_type", sql.VarChar(sql.MAX), pass_type)
         .input("pass_no", sql.VarChar(sql.MAX), pass_no)
@@ -62,7 +80,6 @@ module.exports = {
         )
         .input("vehicle_number", sql.VarChar(sql.MAX), vehicle_number)
         .input("remarks", sql.VarChar(sql.MAX), remarks)
-        .input("particulars", sql.VarChar(sql.MAX), particularsJson)
         .input("status", sql.VarChar(sql.MAX), "pending").query(`
         INSERT INTO CreateGatePass (
           pass_type,
@@ -78,9 +95,9 @@ module.exports = {
           receiver_mobile_number,
           vehicle_number,
           remarks,
-          particulars,
           status
-        ) VALUES (
+        ) 
+        VALUES (
           @pass_type,
           @pass_no,
           @created_time,
@@ -94,10 +111,38 @@ module.exports = {
           @receiver_mobile_number,
           @vehicle_number,
           @remarks,
-          @particulars, 
           @status
         );
       `);
+      const passIdQuery = await transaction
+        .request()
+        .input("pass_no", sql.VarChar(sql.MAX), pass_no).query(`
+        SELECT id FROM CreateGatePass
+        WHERE pass_no = @pass_no;
+      `);
+      const pass_id = passIdQuery.recordset[0].id;
+      for (let i = 0; i < particulars.length; i++) {
+        const { particular, qty } = particulars[i];
+        await transaction
+          .request()
+          .input("pass_id", sql.Int, pass_id)
+          .input("pass_no", sql.VarChar(sql.MAX), pass_no)
+          .input("particular", sql.VarChar(sql.MAX), particular)
+          .input("qty", sql.Int, qty).query(`
+          INSERT INTO gatepass_particulars (
+            pass_no,
+            pass_id,
+            particular,
+            qty
+          ) VALUES (
+            @pass_no,
+            @pass_id,
+            @particular,
+            @qty
+          );
+        `);
+      }
+      await transaction.commit();
       return res.status(200).json({
         message: "Gate pass created successfully",
         gatePassDetails: {
@@ -108,53 +153,74 @@ module.exports = {
         },
       });
     } catch (error) {
+      await transaction.rollback();
       console.error("Error creating gatepass:", error);
       return res.status(500).json({ error: "Error creating gatepass" });
     }
   },
   updateParticularQty: async (req, res) => {
-    const { pass_no, particulars, status } = req.body;
-
+    const currentDateTime = moment().format("YYYY-MM-DD HH:mm");
+    const { pass_no, particulars, status, verified_by } = req.body;
+    const pool = req.app.locals.sql;
+    const transaction = pool.transaction();
     try {
-      const pool = req.app.locals.sql;
-      const result = await pool
+      await transaction.begin();
+      const passQuery = await transaction
         .request()
-        .input("pass_no", sql.VarChar(sql.MAX), pass_no)
-        .query(
-          "SELECT particulars FROM CreateGatePass WHERE pass_no = @pass_no"
-        );
-      if (result.recordset.length === 0) {
+        .input("pass_no", sql.VarChar(sql.MAX), pass_no).query(`
+        SELECT id 
+        FROM CreateGatePass 
+        WHERE pass_no = @pass_no
+      `);
+      if (passQuery.recordset.length === 0) {
+        await transaction.rollback();
         return res.status(404).json({ error: "Pass not found" });
       }
-      const currentParticulars = JSON.parse(result.recordset[0].particulars);
-      const updatedParticulars =
+      const pass_id = passQuery.recordset[0].id;
+      const parsedParticulars =
         typeof particulars === "string" ? JSON.parse(particulars) : particulars;
-      updatedParticulars.forEach((updatedItem) => {
-        const index = currentParticulars.findIndex(
-          (item) => item.particular === updatedItem.particular
-        );
-        if (index !== -1) {
-          currentParticulars[index].qty = updatedItem.qty;
-        }
-      });
-      const updatedParticularsString = JSON.stringify(currentParticulars);
-      await pool
+      for (let i = 0; i < parsedParticulars.length; i++) {
+        const { id, qty } = parsedParticulars[i];
+        const verifiedQty = String(qty);
+        await transaction
+          .request()
+          .input("id", sql.Int, id)
+          .input("verified_qty", sql.VarChar(sql.MAX), verifiedQty)
+          .input("verified_by", sql.VarChar(sql.MAX), verified_by)
+          .input("updated_on", sql.DateTime, currentDateTime).query(`
+          UPDATE gatepass_particulars
+          SET 
+            verified_qty = @verified_qty,
+            updated_on = @updated_on,
+            verified_by=@verified_by
+          WHERE id = @id
+        `);
+      }
+      await transaction
         .request()
-        .input("particulars", sql.VarChar(sql.MAX), updatedParticularsString)
-        .input("pass_no", sql.VarChar(sql.MAX), pass_no)
         .input("status", sql.VarChar(sql.MAX), status)
-        .query(
-          "UPDATE CreateGatePass SET particulars = @particulars, status = @status WHERE pass_no = @pass_no"
-        );
+        .input("verified_by", sql.VarChar(sql.MAX), verified_by)
+        .input("pass_id", sql.Int, pass_id)
+        .input("pass_no", sql.VarChar(sql.MAX), pass_no).query(`
+        UPDATE CreateGatePass
+        SET status = @status,verified_by=@verified_by
+        WHERE id = @pass_id AND pass_no = @pass_no
+      `);
+      await transaction.commit();
       const message =
         status === "approved"
           ? "Pass approved successfully"
           : "Pass rejected successfully";
       return res.status(200).json({
         message,
-        updatedParticulars: currentParticulars,
+        updatedDetails: {
+          pass_no,
+          status,
+          particulars,
+        },
       });
     } catch (error) {
+      await transaction.rollback();
       console.error("Error updating particulars:", error);
       return res.status(500).json({ error: "Error updating particulars" });
     }
