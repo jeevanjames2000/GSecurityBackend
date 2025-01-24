@@ -31,6 +31,65 @@ module.exports = {
       res.status(500).json({ error: "Internal server error" });
     }
   },
+  getGatepassByID: async (req, res) => {
+    try {
+      const pool = req.app.locals.sql;
+      const { searchQuery } = req.query;
+
+      if (!searchQuery || searchQuery.length === 0) {
+        return res.status(400).json({ error: "Not a valid search" });
+      }
+
+      let query = "SELECT * FROM CreateGatePass";
+      const conditions = [];
+      if (searchQuery) {
+        conditions.push(
+          `(LOWER(pass_no) = LOWER('${searchQuery}') OR LOWER(vehicle_number) = LOWER('${searchQuery}'))`
+        );
+      }
+
+      if (conditions.length > 0) {
+        query += " WHERE " + conditions.join(" AND ");
+      }
+
+      query += " ORDER BY id DESC";
+      const gatePassResult = await pool.request().query(query);
+
+      if (gatePassResult.recordset.length === 0) {
+        return res.status(404).json({ message: "No gate passes found." });
+      }
+
+      const filteredPassNos = gatePassResult.recordset.map(
+        (pass) => pass.pass_no
+      );
+
+      const particularsResult = await pool
+        .request()
+        .query("SELECT * FROM gatepass_particulars");
+
+      const gatePasses = gatePassResult.recordset;
+      const particulars = particularsResult.recordset;
+
+      const mappedData = gatePasses.map((gatePass) => {
+        return {
+          ...gatePass,
+          particulars: particulars
+            .filter((particular) => particular.pass_no === gatePass.pass_no)
+            .map((particular) => ({
+              id: particular.id,
+              particular: particular.particular,
+              qty: particular.qty,
+            })),
+        };
+      });
+      console.log("mappedData: ", mappedData);
+
+      res.status(200).json(mappedData);
+    } catch (err) {
+      console.error("Error fetching gate pass data:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
   createGatePass: async (req, res) => {
     const currentDateTime = moment().format("YYYY-MM-DD HH:mm");
     const {
@@ -44,7 +103,7 @@ module.exports = {
       receiver_name,
       receiver_mobile_number,
       vehicle_number,
-      remarks,
+      note,
       particulars,
     } = req.body;
     const pool = req.app.locals.sql;
@@ -79,7 +138,7 @@ module.exports = {
           receiver_mobile_number
         )
         .input("vehicle_number", sql.VarChar(sql.MAX), vehicle_number)
-        .input("remarks", sql.VarChar(sql.MAX), remarks)
+        .input("note", sql.VarChar(sql.MAX), note)
         .input("status", sql.VarChar(sql.MAX), "pending").query(`
         INSERT INTO CreateGatePass (
           pass_type,
@@ -94,7 +153,7 @@ module.exports = {
           receiver_name,
           receiver_mobile_number,
           vehicle_number,
-          remarks,
+          note,
           status
         ) 
         VALUES (
@@ -110,7 +169,7 @@ module.exports = {
           @receiver_name,
           @receiver_mobile_number,
           @vehicle_number,
-          @remarks,
+          @note,
           @status
         );
       `);
