@@ -79,7 +79,6 @@ module.exports = {
       }
 
       const user = result.recordset[0];
-      console.log("user1: ", user);
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {

@@ -38,7 +38,7 @@ app.use(bodyParser.json());
 app.use("/uploads", express.static(path.join(__dirname, "./uploads")));
 app.use("/auth", require("./routes/mainRoutes"));
 app.use("/gatepass", require("./routes/gatepassRoutes"));
-app.use("/api/global", require("./routes/globalRoutes"));
+app.use("/global", require("./routes/globalRoutes"));
 
 const PORT = 9000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
