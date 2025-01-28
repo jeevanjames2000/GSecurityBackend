@@ -108,81 +108,77 @@ module.exports = {
     try {
       const pool = req.app.locals.sql;
       const { searchQuery } = req.query;
-
       if (!searchQuery || searchQuery.length === 0) {
         return res.status(400).json({ error: "Invalid search query." });
       }
-
-      if (searchQuery.startsWith("G")) {
-        // Search in CreateGatePass
+      const normalizedQuery = searchQuery.toLowerCase();
+      if (normalizedQuery.startsWith("g")) {
         const gatePassQuery = `
-        SELECT * FROM CreateGatePass 
+        SELECT * 
+        FROM CreateGatePass 
         WHERE LOWER(pass_no) = LOWER(@searchQuery) 
-           OR LOWER(vehicle_number) = LOWER(@searchQuery)
+          OR LOWER(vehicle_number) = LOWER(@searchQuery)
       `;
         const gatePassResult = await pool
           .request()
           .input("searchQuery", searchQuery)
           .query(gatePassQuery);
-
-        if (gatePassResult.recordset.length > 0) {
-          const particularsResult = await pool
-            .request()
-            .query("SELECT * FROM gatepass_particulars");
-
-          const gatePasses = gatePassResult.recordset;
-          const particulars = particularsResult.recordset;
-
-          const mappedData = gatePasses.map((gatePass) => ({
-            ...gatePass,
-            particulars: particulars
-              .filter((particular) => particular.pass_no === gatePass.pass_no)
-              .map((particular) => ({
-                id: particular.id,
-                particular: particular.particular,
-                qty: particular.qty,
-              })),
-          }));
-
-          return res.status(200).json({ source: "GatePass", data: mappedData });
+        if (gatePassResult.recordset.length === 0) {
+          return res.status(404).json({ message: "GatePass not found." });
         }
-      } else if (searchQuery.startsWith("V")) {
-        // Search in visitor_management
+        const gatePassData = gatePassResult.recordset[0];
+        const passId = gatePassData.id;
+        const particularsQuery = `
+        SELECT * 
+        FROM gatepass_particulars 
+        WHERE pass_id = @passId
+      `;
+        const particularsResult = await pool
+          .request()
+          .input("passId", passId)
+          .query(particularsQuery);
+        return res.status(200).json({
+          source: "GatePass",
+          data: {
+            gatePass: gatePassData,
+            particulars: particularsResult.recordset,
+          },
+        });
+      } else if (normalizedQuery.startsWith("v")) {
         const visitorsQuery = `
-        SELECT * FROM visitor_management 
+        SELECT * 
+        FROM visitor_management 
         WHERE LOWER(visitor_id) = LOWER(@searchQuery)
       `;
-        const visitorsResult = await pool
+        const result = await pool
           .request()
           .input("searchQuery", searchQuery)
           .query(visitorsQuery);
-
-        if (visitorsResult.recordset.length > 0) {
+        if (result.recordset.length > 0) {
           return res.status(200).json({
             source: "VisitorManagement",
-            data: visitorsResult.recordset,
+            data: result.recordset,
           });
         }
       } else {
-        // Search in ReportViolations
         const violationsQuery = `
-        SELECT * FROM ReportViolations 
+        SELECT * 
+        FROM ReportViolations 
         WHERE LOWER(vehicle_number) = LOWER(@searchQuery) 
-        OR LOWER(regdNo_empId) = LOWER(@regdNo_empId) OR LOWER(name) LIKE LOWER('%' + @searchQuery + '%') 
+          OR LOWER(regdNo_empId) = LOWER(@searchQuery) 
+          OR LOWER(name) LIKE LOWER('%' + @searchQuery + '%')
       `;
-        const violationsResult = await pool
+        const result = await pool
           .request()
           .input("searchQuery", searchQuery)
-          .input("regdNo_empId", sql.VarChar(sql.MAX), searchQuery)
           .query(violationsQuery);
-
-        if (violationsResult.recordset.length > 0) {
-          return res
-            .status(200)
-            .json({ source: "Violations", data: violationsResult.recordset });
+        if (result.recordset.length > 0) {
+          return res.status(200).json({
+            source: "Violations",
+            data: result.recordset,
+          });
         }
       }
-
       return res
         .status(404)
         .json({ message: "No data found in any database." });
