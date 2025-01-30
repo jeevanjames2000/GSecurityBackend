@@ -37,8 +37,14 @@ module.exports = {
         console.error("Error uploading files:", err);
         return res.status(500).json({ error: "Error uploading files" });
       }
-      const { name, vehicle_number, comments, totalFines, violationType } =
-        req.body;
+      const {
+        name,
+        vehicle_number,
+        comments,
+        totalFines,
+        violationType,
+        regdNo_empId,
+      } = req.body;
       if (
         !name ||
         !vehicle_number ||
@@ -72,9 +78,11 @@ module.exports = {
           )
           .input("comments", sql.VarChar(sql.MAX), comments)
           .input("totalFines", sql.VarChar(sql.Int), totalFines)
+          .input("regdNo_empId", sql.VarChar(sql.MAX), regdNo_empId)
+
           .input("pics", sql.VarChar(sql.MAX), pics.join(",")).query(`
-          INSERT INTO ReportViolations (name,vehicle_number, violation_type, comments,totalFines, pics)
-          VALUES (@name,@vehicle_number, @violation_type, @comments,@totalFines, @pics);
+          INSERT INTO ReportViolations (name,vehicle_number, violation_type, comments,totalFines, pics,regdNo_empId)
+          VALUES (@name,@vehicle_number, @violation_type, @comments,@totalFines, @pics,@regdNo_empId);
         `);
         return res.status(200).json({
           message: "Violation reported successfully",
@@ -85,6 +93,7 @@ module.exports = {
             comments,
             totalFines,
             pics,
+            regdNo_empId,
           },
         });
       } catch (error) {
@@ -164,9 +173,7 @@ module.exports = {
         const violationsQuery = `
         SELECT * 
         FROM ReportViolations 
-        WHERE LOWER(vehicle_number) = LOWER(@searchQuery) 
-          OR LOWER(regdNo_empId) = LOWER(@searchQuery) 
-          OR LOWER(name) LIKE LOWER('%' + @searchQuery + '%')
+        WHERE LOWER(regdNo_empId) = LOWER(@searchQuery)
       `;
         const result = await pool
           .request()

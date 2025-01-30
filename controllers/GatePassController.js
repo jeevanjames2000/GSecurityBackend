@@ -270,8 +270,9 @@ module.exports = {
         status === "approved"
           ? "Pass approved successfully"
           : "Pass rejected successfully";
+
       return res.status(200).json({
-        message,
+        message,    
         updatedDetails: {
           pass_no,
           status,
@@ -279,6 +280,7 @@ module.exports = {
         },
       });
     } catch (error) {
+      console.log("error: ", error);
       await transaction.rollback();
       console.error("Error updating particulars:", error);
       return res.status(500).json({ error: "Error updating particulars" });
