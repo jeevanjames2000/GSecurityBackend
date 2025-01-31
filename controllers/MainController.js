@@ -194,4 +194,53 @@ module.exports = {
       res.status(500).json({ error: "Internal server error" });
     }
   },
+  updateVisitors: async (req, res) => {
+    const { visitor_id, otp, status } = req.body;
+    const pool = req.app.locals.sql;
+    const transaction = pool.transaction();
+    try {
+      await transaction.begin();
+      const passQuery = await transaction
+        .request()
+        .input("otp", sql.VarChar(sql.MAX), otp)
+        .input("visitor_id", sql.VarChar(sql.MAX), visitor_id).query(`
+        SELECT otp 
+        FROM visitor_management 
+        WHERE visitor_id = @visitor_id
+      `);
+      if (passQuery.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ error: "Pass not found" });
+      }
+      const pass_id = passQuery.recordset[0].id;
+
+      await transaction
+        .request()
+        .input("visitor_id", sql.VarChar(sql.MAX), visitor_id)
+        .input("status", sql.VarChar(sql.MAX), status)
+        .input("otp", sql.VarChar(sql.MAX), otp).query(`
+        UPDATE visitor_management
+        SET status = @status
+        WHERE visitor_id = @visitor_id 
+      `);
+      await transaction.commit();
+      const message =
+        status === "approved"
+          ? "Pass approved successfully"
+          : "Pass rejected successfully";
+
+      return res.status(200).json({
+        message,
+        updatedDetails: {
+          visitor_id,
+          status,
+        },
+      });
+    } catch (error) {
+      console.log("error: ", error);
+      await transaction.rollback();
+
+      return res.status(500).json({ error: "Error updating " });
+    }
+  },
 };

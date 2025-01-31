@@ -16,5 +16,6 @@ router.post("/uploadImage", assetController.uploadImage);
 router.post("/reportViolation", MainController.reportViolation);
 router.get("/getImage?/:name", assetController.getImaage);
 router.get("/getViolations", MainController.getViolations);
+router.post("/updateVisitors", MainController.updateVisitors);
 
 module.exports = router;

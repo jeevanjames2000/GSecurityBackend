@@ -92,7 +92,7 @@ module.exports = {
       request.input("otp", sql.Int, otp);
       if (otp === 9848) {
         const userResult = await request.query(`
-        SELECT username, mobile, gender, campus
+        SELECT username, mobile, gender, campus,regdNo
         FROM GSecurityMaster 
         WHERE mobile = @mobile
       `);
@@ -125,14 +125,14 @@ module.exports = {
           .json({ error: "OTP has expired. Please request a new OTP." });
       }
       const userResult = await request.query(`
-      SELECT username, mobile, gender, campus 
+      SELECT username, mobile, gender, campus,regdNo
       FROM GSecurityMaster 
       WHERE mobile = @mobile
     `);
       const user = userResult.recordset[0];
       return res.json({
         message: "Login successful",
-        ...user,
+        user,
       });
     } catch (err) {
       console.error("Error in loginWithOtp:", err);
@@ -164,7 +164,6 @@ module.exports = {
     `);
       return res.json({
         message: "OTP generated and stored successfully",
-        otp: generatedOtp,
       });
     } catch (err) {
       console.error("Error in generateAndStoreOtp:", err);
