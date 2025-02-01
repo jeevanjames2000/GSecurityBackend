@@ -9,17 +9,14 @@ const generateToken = (user) => {
       regdNo: user.regdNo,
       username: user.username,
       mobile: user.mobile,
-      hostler: user.hostler,
       gender: user.gender,
       campus: user.campus,
     },
     JWT_SECRET,
-    { expiresIn: "10m" }
+    { expiresIn: "60m" }
   );
 };
-const generateOtp = () => {
-  return Math.floor(1000 + Math.random() * 9000);
-};
+
 module.exports = {
   register: async (req, res) => {
     const { regdNo, username, mobile, gender, campus, password } = req.body;
@@ -88,11 +85,11 @@ module.exports = {
     try {
       const pool = req.app.locals.sql;
       const request = pool.request();
-      request.input("mobile", sql.VarChar(sql.MAX), mobile);
+      request.input("mobile", sql.VarChar, mobile);
       request.input("otp", sql.Int, otp);
       if (otp === 9848) {
         const userResult = await request.query(`
-        SELECT username, mobile, gender, campus,regdNo
+        SELECT username, mobile, gender, campus, regdNo
         FROM GSecurityMaster 
         WHERE mobile = @mobile
       `);
@@ -102,8 +99,11 @@ module.exports = {
             .json({ error: "Mobile number not registered" });
         }
         const user = userResult.recordset[0];
+        const token = generateToken(user);
+        console.log("user: ", user);
         return res.json({
           message: "Login successful (OTP Bypass)",
+          token,
           user,
         });
       }
@@ -125,13 +125,19 @@ module.exports = {
           .json({ error: "OTP has expired. Please request a new OTP." });
       }
       const userResult = await request.query(`
-      SELECT username, mobile, gender, campus,regdNo
+      SELECT username, mobile, gender, campus, regdNo
       FROM GSecurityMaster 
       WHERE mobile = @mobile
     `);
+      if (userResult.recordset.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
       const user = userResult.recordset[0];
+      const token = generateToken(user);
+
       return res.json({
         message: "Login successful",
+        token,
         user,
       });
     } catch (err) {
