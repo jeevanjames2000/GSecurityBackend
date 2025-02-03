@@ -17,5 +17,6 @@ router.post("/generateAndStoreOtp", Controller.generateAndStoreOtp);
 router.post("/uploadImage", assetController.uploadImage);
 router.post("/reportViolation", MainController.reportViolation);
 router.post("/updateVisitors", MainController.updateVisitors);
+router.post("/expoPushtoken", MainController.expoPushToken);
 
 module.exports = router;

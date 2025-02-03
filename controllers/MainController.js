@@ -15,7 +15,14 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { files: 5 },
+  limits: { files: 5, fileSize: 1024 * 1024 * 5 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed!"), false);
+    }
+  },
 }).array("images[]", 5);
 module.exports = {
   sample: async (req, res) => {
@@ -148,8 +155,7 @@ module.exports = {
             particulars: particularsResult.recordset,
           },
         });
-      }
-      if (normalizedQuery.startsWith("vm")) {
+      } else if (normalizedQuery.startsWith("vm")) {
         const visitorsQuery = `
         SELECT * 
         FROM visitor_management 
@@ -202,7 +208,6 @@ module.exports = {
         await transaction.rollback();
         return res.status(404).json({ error: "Pass not found" });
       }
-      const pass_id = passQuery.recordset[0].id;
       await transaction
         .request()
         .input("visitor_id", sql.VarChar(sql.MAX), visitor_id)
@@ -228,6 +233,48 @@ module.exports = {
       console.log("error: ", error);
       await transaction.rollback();
       return res.status(500).json({ error: "Error updating " });
+    }
+  },
+  expoPushToken: async (req, res) => {
+    const { pushToken, regdNo } = req.body;
+    const pool = req.app.locals.sql;
+    try {
+      const checkUserQuery = `
+            SELECT * FROM GSecurityMaster WHERE regdNo = @regdNo
+        `;
+      const userExists = await pool
+        .request()
+        .input("regdNo", sql.VarChar(sql.MAX), regdNo)
+        .query(checkUserQuery);
+      if (userExists.recordset.length > 0) {
+        const updateTokenQuery = `
+                UPDATE GSecurityMaster
+                SET pushToken = @pushToken
+                WHERE regdNo = @regdNo
+            `;
+        await pool
+          .request()
+          .input("pushToken", sql.VarChar(sql.MAX), pushToken)
+          .input("regdNo", sql.VarChar(sql.MAX), regdNo)
+          .query(updateTokenQuery);
+        res.status(200).send({ message: "Push token updated successfully." });
+      } else {
+        const insertUserQuery = `
+                INSERT INTO GSecurityMaster (pushToken)
+                VALUES (@pushToken) Where regdNo = @regdNo
+            `;
+        await pool
+          .request()
+          .input("regdNo", sql.VarChar(sql.MAX), regdNo)
+          .input("pushToken", sql.VarChar(sql.MAX), pushToken)
+          .query(insertUserQuery);
+        res
+          .status(201)
+          .send({ message: "New user and push token inserted successfully." });
+      }
+    } catch (error) {
+      console.error("Error handling push token:", error);
+      res.status(500).send({ message: "Internal server error." });
     }
   },
 };
