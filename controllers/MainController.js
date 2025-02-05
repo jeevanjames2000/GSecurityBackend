@@ -1,6 +1,7 @@
 require("dotenv").config();
 const sql = require("mssql");
 const multer = require("multer");
+const { Expo } = require("expo-server-sdk");
 const path = require("path");
 const fs = require("fs");
 const uploadFolder = path.join(__dirname, "../uploads");
@@ -24,6 +25,7 @@ const upload = multer({
     }
   },
 }).array("images[]", 5);
+let expo = new Expo();
 module.exports = {
   sample: async (req, res) => {
     const { regdNo } = req.params;
@@ -275,6 +277,141 @@ module.exports = {
     } catch (error) {
       console.error("Error handling push token:", error);
       res.status(500).send({ message: "Internal server error." });
+    }
+  },
+  expoPushNotification: async (req, res) => {
+    const pool = req.app.locals.sql;
+    try {
+      const { pushTokens, title, body, data } = req.body;
+      if (
+        !pushTokens ||
+        !Array.isArray(pushTokens) ||
+        pushTokens.length === 0
+      ) {
+        return res.status(400).json({ error: "Invalid pushTokens array" });
+      }
+      let messages = [];
+      let tokenStatus = {};
+      for (let pushToken of pushTokens) {
+        if (!Expo.isExpoPushToken(pushToken)) {
+          console.warn(
+            `Push token ${pushToken} is not a valid Expo push token`
+          );
+          tokenStatus[pushToken] = 1;
+          continue;
+        }
+        messages.push({
+          to: pushToken,
+          sound: "default",
+          title,
+          body,
+          data: data || {},
+        });
+        tokenStatus[pushToken] = 1;
+      }
+      let chunks = expo.chunkPushNotifications(messages);
+      let tickets = [];
+      for (let chunk of chunks) {
+        let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        tickets.push(...ticketChunk);
+      }
+      tickets.forEach((ticket, index) => {
+        if (ticket.status === "ok") {
+          tokenStatus[messages[index].to] = 2;
+        }
+      });
+      for (const pushToken of pushTokens) {
+        try {
+          await pool
+            .request()
+            .input("pushToken", sql.VarChar(sql.MAX), pushToken)
+            .input("pushNotificationStatus", sql.Int, tokenStatus[pushToken])
+            .query(`
+                        UPDATE GSecurityMaster 
+                        SET pushNotificationStatus = @pushNotificationStatus 
+                        WHERE pushToken = @pushToken
+                    `);
+        } catch (dbError) {
+          console.error(
+            `Error updating pushNotificationStatus for ${pushToken}:`,
+            dbError
+          );
+        }
+      }
+      res.json({ success: true, tickets });
+    } catch (error) {
+      console.error("Error sending push notification:", error);
+      res.status(500).json({ error: "Failed to send push notification" });
+    }
+  },
+  getAllPushTokens: async (req, res) => {
+    const pool = req.app.locals.sql;
+    try {
+      const query = `SELECT pushToken FROM GSecurityMaster WHERE pushToken IS NOT NULL`;
+      const result = await pool.request().query(query);
+      if (result.recordset.length > 0) {
+        const pushTokens = result.recordset.map((row) => row.pushToken);
+        res.status(200).json({ success: true, pushTokens });
+      } else {
+        res
+          .status(404)
+          .json({ success: false, message: "No push tokens found." });
+      }
+    } catch (error) {
+      console.error("Error fetching push tokens:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Internal server error." });
+    }
+  },
+  communications: async (req, res) => {
+    const pool = req.app.locals.sql;
+
+    try {
+      const { regdNo, mobile, username, message } = req.body;
+
+      if (!mobile || !username || !message) {
+        return res.status(400).json({ error: "All fields are required." });
+      }
+
+      const insertQuery = `
+            INSERT INTO Communications (regdNo, mobile, username, message,time)
+            VALUES (@regdNo, @mobile, @username, @message,@time)
+        `;
+      const dateTimeNow = new Date();
+      await pool
+        .request()
+        .input("regdNo", sql.VarChar(sql.MAX), regdNo)
+        .input("mobile", sql.VarChar(sql.MAX), mobile)
+        .input("username", sql.VarChar(sql.MAX), username)
+        .input("message", sql.VarChar(sql.MAX), message)
+        .input("time", sql.DateTime, dateTimeNow)
+        .query(insertQuery);
+      res
+        .status(200)
+        .json({ success: true, message: "Message stored successfully." });
+    } catch (error) {
+      console.error("Error storing message:", error);
+      res.status(500).json({ error: "Internal server error." });
+    }
+  },
+  getAllMessages: async (req, res) => {
+    const pool = req.app.locals.sql;
+    try {
+      const query = `SELECT * FROM Communications WHERE username IS NOT NULL AND regdNo IS NOT NULL`;
+      const result = await pool.request().query(query);
+      if (result.recordset.length > 0) {
+        const messages = result.recordset;
+        console.log("messages: ", messages);
+        res.status(200).json({ success: true, messages });
+      } else {
+        res.status(404).json({ success: false, message: "No messages found." });
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Internal server error." });
     }
   },
 };
