@@ -345,10 +345,14 @@ module.exports = {
     }
   },
   getAllPushTokens: async (req, res) => {
+    const { regdNo } = req.params;
     const pool = req.app.locals.sql;
+
     try {
-      const query = `SELECT pushToken FROM GSecurityMaster WHERE pushToken IS NOT NULL`;
-      const result = await pool.request().query(query);
+      const query = `SELECT pushToken FROM GSecurityMaster WHERE regdNo <> @regdNo AND pushToken IS NOT NULL;`;
+
+      const result = await pool.request().input("regdNo", regdNo).query(query);
+
       if (result.recordset.length > 0) {
         const pushTokens = result.recordset.map((row) => row.pushToken);
         res.status(200).json({ success: true, pushTokens });
@@ -402,7 +406,6 @@ module.exports = {
       const result = await pool.request().query(query);
       if (result.recordset.length > 0) {
         const messages = result.recordset;
-        console.log("messages: ", messages);
         res.status(200).json({ success: true, messages });
       } else {
         res.status(404).json({ success: false, message: "No messages found." });

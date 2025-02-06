@@ -20,7 +20,7 @@ router.post("/updateVisitors", MainController.updateVisitors);
 router.post("/expoPushtoken", MainController.expoPushToken);
 router.post("/expoPushNotification", MainController.expoPushNotification);
 router.post("/communications", MainController.communications);
-router.get("/getAllPushTokens", MainController.getAllPushTokens);
+router.get("/getAllPushTokens?/:regdNo", MainController.getAllPushTokens);
 router.get("/getAllMessages", MainController.getAllMessages);
 
 module.exports = router;
