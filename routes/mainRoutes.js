@@ -22,5 +22,9 @@ router.post("/expoPushNotification", MainController.expoPushNotification);
 router.post("/communications", MainController.communications);
 router.get("/getAllPushTokens?/:regdNo", MainController.getAllPushTokens);
 router.get("/getAllMessages", MainController.getAllMessages);
+router.post(
+  "/selectedUsersPushNotifications",
+  MainController.selectedUsersPushNotifications
+);
 
 module.exports = router;

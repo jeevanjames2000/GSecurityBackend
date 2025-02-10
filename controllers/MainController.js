@@ -55,11 +55,7 @@ module.exports = {
         regdNo_empId,
         reported_by,
       } = req.body;
-      if (
-        ![name, vehicle_number, comments, totalFines, violationType].every(
-          Boolean
-        )
-      ) {
+      if (![vehicle_number, comments, violationType].every(Boolean)) {
         return res
           .status(400)
           .json({ error: "Please enter all the required fields" });
@@ -347,12 +343,9 @@ module.exports = {
   getAllPushTokens: async (req, res) => {
     const { regdNo } = req.params;
     const pool = req.app.locals.sql;
-
     try {
       const query = `SELECT pushToken FROM GSecurityMaster WHERE regdNo <> @regdNo AND pushToken IS NOT NULL;`;
-
       const result = await pool.request().input("regdNo", regdNo).query(query);
-
       if (result.recordset.length > 0) {
         const pushTokens = result.recordset.map((row) => row.pushToken);
         res.status(200).json({ success: true, pushTokens });
@@ -370,14 +363,11 @@ module.exports = {
   },
   communications: async (req, res) => {
     const pool = req.app.locals.sql;
-
     try {
       const { regdNo, mobile, username, message } = req.body;
-
       if (!mobile || !username || !message) {
         return res.status(400).json({ error: "All fields are required." });
       }
-
       const insertQuery = `
             INSERT INTO Communications (regdNo, mobile, username, message,time)
             VALUES (@regdNo, @mobile, @username, @message,@time)
@@ -402,16 +392,120 @@ module.exports = {
   getAllMessages: async (req, res) => {
     const pool = req.app.locals.sql;
     try {
-      const query = `SELECT * FROM Communications WHERE username IS NOT NULL AND regdNo IS NOT NULL`;
-      const result = await pool.request().query(query);
-      if (result.recordset.length > 0) {
-        const messages = result.recordset;
-        res.status(200).json({ success: true, messages });
+      const dateQuery = `
+      SELECT DISTINCT CAST(time AS DATE) AS unique_date
+      FROM Communications
+      ORDER BY unique_date DESC
+      OFFSET 0 ROWS FETCH NEXT 3 ROWS ONLY;
+    `;
+      const dateResult = await pool.request().query(dateQuery);
+      if (dateResult.recordset.length === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "No messages found." });
+      }
+      const topDates = dateResult.recordset.map((row) => row.unique_date);
+      const messageQuery = `
+      SELECT * FROM Communications 
+      WHERE CAST(time AS DATE) IN (@date1, @date2, @date3) 
+      AND username IS NOT NULL 
+      AND regdNo IS NOT NULL
+      ORDER BY time DESC;
+    `;
+      const request = pool.request();
+      topDates.forEach((date, index) => {
+        request.input(`date${index + 1}`, date);
+      });
+      const messageResult = await request.query(messageQuery);
+      if (messageResult.recordset.length > 0) {
+        res
+          .status(200)
+          .json({ success: true, messages: messageResult.recordset });
       } else {
         res.status(404).json({ success: false, message: "No messages found." });
       }
     } catch (error) {
       console.error("Error fetching messages:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Internal server error." });
+    }
+  },
+  selectedUsersPushNotifications: async (req, res) => {
+    const { regdNos, title, body, data } = req.body;
+    const pool = req.app.locals.sql;
+    try {
+      if (!Array.isArray(regdNos) || regdNos.length === 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid regdNos array." });
+      }
+      const query = `SELECT pushToken FROM GSecurityMaster WHERE regdNo IN (${regdNos
+        .map((_, i) => `@regdNo${i}`)
+        .join(",")}) AND pushToken IS NOT NULL;`;
+      const request = pool.request();
+      regdNos.forEach((regdNo, i) => {
+        request.input(`regdNo${i}`, regdNo);
+      });
+      const result = await request.query(query);
+      if (result.recordset.length > 0) {
+        const pushTokens = result.recordset.map((row) => row.pushToken);
+        let messages = [];
+        let tokenStatus = {};
+        for (let pushToken of pushTokens) {
+          if (!Expo.isExpoPushToken(pushToken)) {
+            console.warn(
+              `Push token ${pushToken} is not a valid Expo push token`
+            );
+            tokenStatus[pushToken] = 1;
+            continue;
+          }
+          messages.push({
+            to: pushToken,
+            sound: "default",
+            title,
+            body,
+            data: data || {},
+          });
+          tokenStatus[pushToken] = 1;
+        }
+        let chunks = expo.chunkPushNotifications(messages);
+        let tickets = [];
+        for (let chunk of chunks) {
+          let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+          tickets.push(...ticketChunk);
+        }
+        tickets.forEach((ticket, index) => {
+          if (ticket.status === "ok") {
+            tokenStatus[messages[index].to] = 2;
+          }
+        });
+        for (const pushToken of pushTokens) {
+          try {
+            await pool
+              .request()
+              .input("pushToken", sql.VarChar(sql.MAX), pushToken)
+              .input("pushNotificationStatus", sql.Int, tokenStatus[pushToken])
+              .query(`
+                UPDATE GSecurityMaster 
+                SET pushNotificationStatus = @pushNotificationStatus 
+                WHERE pushToken = @pushToken
+            `);
+          } catch (dbError) {
+            console.error(
+              `Error updating pushNotificationStatus for ${pushToken}:`,
+              dbError
+            );
+          }
+        }
+        res.json({ success: true, tickets });
+      } else {
+        res
+          .status(404)
+          .json({ success: false, message: "No push tokens found." });
+      }
+    } catch (error) {
+      console.error("Error fetching push tokens:", error);
       res
         .status(500)
         .json({ success: false, message: "Internal server error." });
