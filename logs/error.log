@@ -1,0 +1,18 @@
+2025-02-11T06:01:53.189Z | WARN | Routing | Home Screen | mobile | Route failed
+2025-02-11T06:06:23.816Z | WARN | Routing | Home Screen | mobile | Route failed
+2025-02-11T06:21:32.935Z | WARN | Routing | Home Screen | mobile | Route failed
+2025-02-11T06:44:58.950Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:45:38.763Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:45:41.711Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:46:22.980Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:46:52.799Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:48:36.062Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:48:43.454Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:49:39.660Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:49:52.824Z | ERROR | API error | Communications | null | Error Fetching messages at communications
+2025-02-11T06:56:12.578Z | ERROR | API error | Communications |  | Error Fetching messages at communications
+2025-02-11T06:57:11.787Z | ERROR | API error | Communications | [object Object] | Error Fetching messages at communications
+2025-02-11T06:57:38.407Z | ERROR | API error | Communications |  | Error Fetching messages at communications
+2025-02-11T06:57:55.808Z | ERROR | API error | Communications |  | Error Fetching messages at communications
+2025-02-11T06:57:56.276Z | ERROR | API error | Communications |  | Error Fetching messages at communications
+2025-02-11T07:08:32.502Z | ERROR | API error | Home Cards (Gatepass or VMS) |  | Failed to fetch data by search query.

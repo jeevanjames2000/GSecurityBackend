@@ -5,6 +5,7 @@ const Controller = require("../controllers/AuthController");
 const MainController = require("../controllers/MainController");
 const authenticate = require("../middlewares/auth");
 const assetController = require("../controllers/AssetController");
+const Logger = require("../controllers/logger");
 
 router.post("/register", Controller.register);
 router.post("/login", Controller.login);
@@ -26,5 +27,8 @@ router.post(
   "/selectedUsersPushNotifications",
   MainController.selectedUsersPushNotifications
 );
+
+// logger
+router.post("/logger", Logger);
 
 module.exports = router;
