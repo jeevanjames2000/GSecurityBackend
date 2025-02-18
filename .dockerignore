@@ -1,0 +1,40 @@
+# Ignore node modules
+node_modules/
+
+# Ignore build files & temporary directories
+build/
+dist/
+.next/
+.cache/
+
+# Ignore config files
+*.env
+secrets.dev.yaml
+values.dev.yaml
+
+# Ignore logs & debug files
+npm-debug.log
+*.log
+
+# Ignore IDE/editor files
+.vscode/
+.vs/
+.settings/
+classpath/
+.project/
+
+# Ignore Docker & Compose files (optional)
+docker-compose*
+compose.y*ml
+Dockerfile*
+
+# Ignore Git-related files
+.git/
+.gitignore
+
+# Ignore uploads (if not needed in the container)
+uploads/
+
+# Ignore license & documentation files (optional)
+LICENSE
+README.md

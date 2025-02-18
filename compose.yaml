@@ -1,0 +1,15 @@
+version: "3.8"
+services:
+  server:
+    build:
+      context: .
+    environment:
+      NODE_ENV: production
+    ports:
+      - 9000:9000
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules  # Prevents overwriting container node_modules
+    env_file:
+      - .env
+    command: ["npm", "run", "dev"] 
