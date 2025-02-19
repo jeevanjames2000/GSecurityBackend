@@ -1,0 +1,70 @@
+name: Docker Build, Push, and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Build Started
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{"text": "🚀 GSecurity Backend Build Started: Docker Build, Push, and Deploy workflow triggered for commit ${{ github.sha }} on branch ${{ github.ref }}."}' \
+          "${{ secrets.GOOGLE_CHAT_WEBHOOK }}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          docker build --no-cache -t jeevanjames2000/gsecurity:${{ github.sha }} .
+          docker tag jeevanjames2000/gsecurity:${{ github.sha }} jeevanjames2000/gsecurity:latest
+
+      - name: Push Docker image
+        run: |
+          docker push jeevanjames2000/gsecurity:${{ github.sha }}
+          docker push jeevanjames2000/gsecurity:latest
+
+      - name: Notify Build Completed
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{"text": "✅GSecurity Backend Build Completed: Docker image successfully built and pushed to Docker Hub."}' \
+          "${{ secrets.GOOGLE_CHAT_WEBHOOK }}"
+
+  deploy:
+    runs-on: self-hosted
+    needs: build-and-push
+
+    steps:
+      - name: Pull latest Docker image
+        run: docker pull jeevanjames2000/gsecurity:latest
+
+      - name: Stop and remove existing container
+        run: |
+          docker stop gsecurity
+          docker rm gsecurity
+
+      - name: Run updated container
+        run: docker run -d -p 9000:9000 --name gsecurity jeevanjames2000/gsecurity:latest
+
+  notify-failure:
+    runs-on: ubuntu-latest
+    if: ${{ failure() }}
+    needs: [build-and-push, deploy]
+
+    steps:
+      - name: Notify Failure
+        run: |
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{"text": "❌GSecurity Backend Build or Deployment Failed: Check the GitHub Actions workflow for details."}' \
+          "${{ secrets.GOOGLE_CHAT_WEBHOOK }}"
