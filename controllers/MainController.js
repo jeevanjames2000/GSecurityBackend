@@ -5,7 +5,6 @@ const { Expo } = require("expo-server-sdk");
 const path = require("path");
 const fs = require("fs");
 const moment = require("moment");
-
 const uploadFolder = path.join(__dirname, "../uploads");
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -408,16 +407,22 @@ module.exports = {
           .json({ success: false, message: "No messages found." });
       }
       const topDates = dateResult.recordset.map((row) => row.unique_date);
+      if (topDates.length === 0) {
+        return res
+          .status(404)
+          .json({ success: false, message: "No messages found." });
+      }
+      const dateParams = topDates.map((_, index) => `@date${index}`).join(", ");
       const messageQuery = `
       SELECT * FROM Communications 
-      WHERE CAST(time AS DATE) IN (@date1, @date2, @date3) 
+      WHERE CAST(time AS DATE) IN (${dateParams})
       AND username IS NOT NULL 
       AND regdNo IS NOT NULL
       ORDER BY time DESC;
     `;
       const request = pool.request();
       topDates.forEach((date, index) => {
-        request.input(`date${index + 1}`, date);
+        request.input(`date${index}`, date);
       });
       const messageResult = await request.query(messageQuery);
       if (messageResult.recordset.length > 0) {
