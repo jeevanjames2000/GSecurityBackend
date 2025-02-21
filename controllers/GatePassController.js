@@ -77,7 +77,7 @@ module.exports = {
     }
   },
   createGatePass: async (req, res) => {
-    const currentDateTime = moment().format("YYYY-MM-DD HH:mm");
+    const currentDateTime = moment().format("YYYY-MM-DD");
     const {
       pass_type,
       issued_by,
@@ -163,7 +163,7 @@ module.exports = {
     }
   },
   updateParticularQty: async (req, res) => {
-    const currentDateTime = moment().format("YYYY-MM-DD HH:mm");
+    const currentDateTime = moment().format("YYYY-MM-DD");
     const { pass_no, particulars, status, verified_by } = req.body;
     const pool = req.app.locals.sql;
     const transaction = pool.transaction();

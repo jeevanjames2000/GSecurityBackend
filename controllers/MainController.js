@@ -4,6 +4,8 @@ const multer = require("multer");
 const { Expo } = require("expo-server-sdk");
 const path = require("path");
 const fs = require("fs");
+const moment = require("moment");
+
 const uploadFolder = path.join(__dirname, "../uploads");
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -60,6 +62,7 @@ module.exports = {
           .status(400)
           .json({ error: "Please enter all the required fields" });
       }
+      const currentDateTime = moment().format("YYYY-MM-DD");
       const violation_type = Array.isArray(violationType)
         ? violationType.join(",")
         : violationType;
@@ -79,9 +82,10 @@ module.exports = {
           .input("totalFines", sql.Int, totalFines)
           .input("regdNo_empId", sql.VarChar, regdNo_empId)
           .input("reported_by", sql.VarChar, reported_by)
+          .input("reported_date", sql.DateTime, currentDateTime)
           .input("pics", sql.VarChar, pics.join(",")).query(`
-          INSERT INTO ReportViolations (name, vehicle_number, violation_type, comments, totalFines, pics, regdNo_empId, reported_by)
-          VALUES (@name, @vehicle_number, @violation_type, @comments, @totalFines, @pics, @regdNo_empId, @reported_by);
+          INSERT INTO ReportViolations (name, vehicle_number, violation_type, comments, totalFines, pics, regdNo_empId, reported_by,reported_date)
+          VALUES (@name, @vehicle_number, @violation_type, @comments, @totalFines, @pics, @regdNo_empId, @reported_by,@reported_date);
         `);
         return res.status(200).json({
           message: "Violation reported successfully",
@@ -228,7 +232,6 @@ module.exports = {
         },
       });
     } catch (error) {
-      console.log("error: ", error);
       await transaction.rollback();
       return res.status(500).json({ error: "Error updating " });
     }
