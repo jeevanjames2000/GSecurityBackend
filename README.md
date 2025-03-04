@@ -37,3 +37,20 @@ route to /var/www/html/GSecurityBackend
 npm install
 npm run dev or pm2 start index.js
 now directly connect the ip address of linux server and call the apis instead of your localhost ip
+
+3. Installation
+   use npm packages npm install "package name"
+   "dependencies": {
+   "bcrypt": "^5.1.1",
+   "body-parser": "^1.20.3",
+   "cors": "^2.8.5",
+   "dotenv": "^16.4.7",
+   "expo-server-sdk": "^3.13.0",
+   "express": "^4.21.2",
+   "jsonwebtoken": "^9.0.2",
+   "moment": "^2.30.1",
+   "mssql": "^11.0.1",
+   "multer": "^1.4.5-lts.1",
+   "nodemon": "^3.1.9",
+   "sequelize": "^6.37.5"
+   }
